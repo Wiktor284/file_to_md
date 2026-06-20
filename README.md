@@ -14,7 +14,6 @@ Lokalna aplikacja do ekstrakcji i czyszczenia dokumentów PDF/DOCX/JPG.
 ### 2. Instalacja (tylko raz)
 
 ```powershell
-cd c:\Users\Asus\Desktop\wikiwikxon\odczyt_plik_md
 npm install
 npm run setup:python
 ```
