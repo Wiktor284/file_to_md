@@ -28,7 +28,7 @@ npm run dev
 
 ### 4. Otwórz aplikację
 
-**http://localhost:8765**
+**http://localhost:XXXX**
 
 ---
 
