@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Document Parser — LLM Prep Engine</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #ffffff; --bg2: #f7f7f5; --bg3: #ececea;
+  --text: #1a1a1a; --text2: #666; --text3: #aaa;
+  --border: #ddddd8; --border2: #bbbbb4;
+  --green: #2a7a2a; --green-bg: #edf7ed; --green-border: #a0d8a0;
+  --red: #a03020; --red-bg: #fde8df; --red-border: #f0b8a8;
+  --r: 10px; --rs: 6px;
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono: "Fira Mono", "Consolas", "Menlo", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1c1c1e; --bg2: #2c2c2e; --bg3: #3a3a3c;
+    --text: #f0f0ee; --text2: #a0a0a0; --text3: #555;
+    --border: #3a3a3c; --border2: #555;
+    --green-bg: #1a3a1a; --red-bg: #3a1a1a;
+  }
+}
+body { font-family: var(--font); background: var(--bg2); color: var(--text); min-height: 100vh; padding: 28px 16px; }
+.wrap { max-width: 940px; margin: 0 auto; }
+h1 { font-size: 21px; font-weight: 600; margin-bottom: 4px; }
+.subtitle { font-size: 13px; color: var(--text2); margin-bottom: 20px; }
+
+/* status bar */
+.status-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+.chip { display: flex; align-items: center; gap: 6px; font-size: 12px; padding: 5px 12px; border-radius: 20px; border: 1px solid var(--border); background: var(--bg); color: var(--text2); }
+.chip.ok  { border-color: var(--green-border); background: var(--green-bg); color: var(--green); }
+.chip.err { border-color: var(--red-border);   background: var(--red-bg);   color: var(--red); }
+
+/* panels */
+.main { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+@media (max-width: 660px) { .main { grid-template-columns: 1fr; } }
+.panel { background: var(--bg); border: 1px solid var(--border); border-radius: var(--r); display: flex; flex-direction: column; overflow: hidden; }
+.phead { display: flex; align-items: center; gap: 8px; padding: 9px 13px; background: var(--bg2); border-bottom: 1px solid var(--border); font-size: 12px; font-weight: 500; color: var(--text2); }
+.badge { font-size: 11px; padding: 2px 8px; border-radius: 20px; }
+.bd { background: var(--red-bg); color: var(--red); }
+.bc { background: var(--green-bg); color: var(--green); }
+
+/* tabs */
+.tabs { display: flex; gap: 6px; padding: 10px 12px 0; }
+.tab { padding: 5px 13px; border: 1px solid var(--border); border-radius: var(--rs); font-size: 12px; cursor: pointer; background: transparent; color: var(--text2); }
+.tab.on { background: var(--bg); border-color: var(--border2); color: var(--text); font-weight: 500; }
+
+/* drop zone */
+.dz { margin: 12px; border: 2px dashed var(--border2); border-radius: var(--rs); padding: 30px 20px; text-align: center; cursor: pointer; position: relative; transition: background .15s; }
+.dz:hover, .dz.over { background: var(--bg2); }
+.dz input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+.dz-icon { font-size: 30px; margin-bottom: 8px; }
+.dz-title { font-size: 14px; font-weight: 500; margin-bottom: 4px; }
+.dz-sub { font-size: 12px; color: var(--text2); }
+.fpill { display: none; align-items: center; gap: 8px; background: var(--bg2); border: 1px solid var(--border); border-radius: 20px; padding: 5px 12px; font-size: 12px; margin: 0 12px 12px; }
+.fpill-name { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.fpill-rm { background:none; border:none; color:var(--text2); cursor:pointer; font-size:17px; line-height:1; }
+
+/* progress */
+.prog-wrap { margin: 0 12px 12px; display: none; }
+.prog-bar { height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; }
+.prog-fill { height: 100%; width: 0%; background: #4a90d9; border-radius: 2px; transition: width .3s; }
+.prog-label { font-size: 11px; color: var(--text2); margin-top: 4px; }
+
+/* textarea */
+textarea { flex:1; border:none; outline:none; resize:none; font-family:var(--mono); font-size:12px; line-height:1.65; padding:12px 13px; background:transparent; color:var(--text); min-height:220px; }
+
+/* output */
+.out-body { flex:1; font-family:var(--mono); font-size:12px; line-height:1.65; padding:12px 13px; white-space:pre-wrap; word-break:break-word; overflow-y:auto; min-height:220px; color:var(--text); }
+.out-body.ph { font-family:var(--font); font-size:13px; color:var(--text3); display:flex; align-items:center; justify-content:center; text-align:center; }
+.out-body.err { color:var(--red); font-family:var(--font); font-size:13px; padding:18px; }
+
+/* stats */
+.sbar { display:flex; gap:12px; padding:7px 13px; border-top:1px solid var(--border); background:var(--bg2); font-size:11px; color:var(--text2); flex-wrap:wrap; align-items:center; }
+.sbar span { font-weight:500; color:var(--text); }
+
+/* controls */
+.ctrl { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.btn { display:flex; align-items:center; gap:6px; padding:9px 20px; border:1px solid var(--border2); border-radius:var(--rs); background:var(--bg); color:var(--text); font-size:14px; font-weight:500; cursor:pointer; transition:background .15s; }
+.btn:hover { background:var(--bg3); }
+.btn:active { transform:scale(.98); }
+.btn:disabled { opacity:.4; cursor:not-allowed; transform:none; }
+.btn-g { background:transparent; border-color:var(--border); color:var(--text2); font-weight:400; }
+.btn-g:hover { background:var(--bg2); }
+.stat-msg { font-size:13px; color:var(--text2); display:flex; align-items:center; gap:8px; }
+.spin { width:14px; height:14px; border:2px solid var(--border2); border-top-color:var(--text2); border-radius:50%; animation:spin .7s linear infinite; flex-shrink:0; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+/* mode badge */
+.mode-pill { font-size:11px; padding:2px 9px; border-radius:20px; background:var(--bg3); color:var(--text2); border:1px solid var(--border); margin-left:auto; }
+.mode-pill.local { background:var(--green-bg); color:var(--green); border-color:var(--green-border); }
+.math-opt { display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text2); margin-bottom:16px; padding:10px 14px; background:var(--bg); border:1px solid var(--border); border-radius:var(--r); }
+.math-opt input { width:16px; height:16px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>📄 Document Parser — LLM Prep Engine</h1>
+  <p class="subtitle">Wgraj plik lub wklej tekst → czysty Markdown. Wszystko działa lokalnie na Twoim komputerze.</p>
+
+  <!-- STATUS BAR -->
+  <div class="status-bar" id="statusBar">
+    <div class="chip" id="chipPDF">⏳ PDF...</div>
+    <div class="chip" id="chipDOCX">⏳ DOCX...</div>
+    <div class="chip" id="chipOCR">⏳ OCR...</div>
+    <div class="chip" id="chipMath">⏳ Math...</div>
+    <div class="chip ok" id="chipLocal">✅ tryb lokalny</div>
+  </div>
+
+  <label class="math-opt">
+    <input type="checkbox" id="mathMode" checked>
+    <span>Tryb matematyka (Pix2Text) — lepsze wzory, wolniejsze (JPG/PDF)</span>
+  </label>
+
+  <div class="main">
+    <!-- INPUT -->
+    <div class="panel">
+      <div class="phead">
+        ✏️ Wejście
+        <span class="badge bd">dirty</span>
+        <span class="mode-pill" id="modePill">tryb: tekst</span>
+      </div>
+      <div class="tabs">
+        <button class="tab on" onclick="switchMode('file')" id="tabF">📁 Plik</button>
+        <button class="tab"    onclick="switchMode('text')" id="tabT">📝 Tekst</button>
+      </div>
+
+      <div id="mFile" style="flex:1;display:flex;flex-direction:column">
+        <div class="dz" id="dz" ondragover="dvr(event)" ondragleave="dvl()" ondrop="ddp(event)">
+          <input type="file" id="fi" accept=".pdf,.docx,.doc,.txt,.md,.rtf,.jpg,.jpeg,.png,.webp" onchange="fsel(event)">
+          <div class="dz-icon">☁️</div>
+          <div class="dz-title">Przeciągnij plik lub kliknij, aby wybrać</div>
+          <div class="dz-sub">PDF, DOCX, JPG, PNG, TXT, MD, RTF</div>
+        </div>
+        <div class="fpill" id="fpill">
+          <span>📄</span>
+          <span class="fpill-name" id="fname">—</span>
+          <button class="fpill-rm" onclick="rmFile()" title="Usuń">×</button>
+        </div>
+        <div class="prog-wrap" id="progWrap">
+          <div class="prog-bar"><div class="prog-fill" id="progFill"></div></div>
+          <div class="prog-label" id="progLabel">Wczytywanie...</div>
+        </div>
+      </div>
+
+      <div id="mText" style="display:none;flex:1;flex-direction:column">
+        <textarea id="rawText"
+          placeholder="Wklej brudny tekst z PDF/DOCX...&#10;&#10;Artefakty, rozbite wiersze, stopki, numery stron — wszystko oczyścimy."
+          oninput="updStats()"></textarea>
+        <div class="sbar">
+          Znaki: <span id="iChars">0</span> · Słowa: <span id="iWords">0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- OUTPUT -->
+    <div class="panel">
+      <div class="phead">
+        ✨ Czysty Markdown
+        <span class="badge bc" id="bcBadge" style="display:none">clean</span>
+        <button id="cpBtn" onclick="cpOut()" style="display:none;margin-left:auto;font-size:11px;padding:3px 10px;border:1px solid var(--border);border-radius:var(--rs);background:var(--bg);color:var(--text2);cursor:pointer">📋 kopiuj</button>
+      </div>
+      <div class="out-body ph" id="outArea">
+        <div><div style="font-size:26px;margin-bottom:8px">✨</div>Wgraj plik lub wklej tekst,<br>następnie kliknij „Parsuj i wyczyść"</div>
+      </div>
+      <div class="sbar">
+        Znaki: <span id="oChars">—</span> · Słowa: <span id="oWords">—</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="ctrl">
+    <button class="btn" id="parseBtn" onclick="run()">🪄 Parsuj i wyczyść</button>
+    <button class="btn btn-g" onclick="clrAll()">wyczyść</button>
+    <div class="stat-msg" id="statMsg"></div>
+  </div>
+</div>
+
+<script>
+// ── state ──────────────────────────────────────────────────────────────────
+let curMode = 'file';
+let curFile = null;
+let extractedText = '';
+let extractMethod = '';
+let caps = { pdf: false, docx: false, ocr: false, math: false };
+
+// ── init: sprawdź możliwości serwera ──────────────────────────────────────
+async function checkStatus() {
+  try {
+    const r = await fetch('/status');
+    const d = await r.json();
+    caps = { pdf: d.pdf, docx: d.docx, ocr: d.ocr, math: d.math };
+  } catch {
+    caps = { pdf: false, docx: false, ocr: false, math: false };
+  }
+  renderChips();
+}
+
+function renderChips() {
+  setChip('chipPDF',  caps.pdf,  '✅ PDF lokalnie',  '❌ PDF — uruchom npm run dev');
+  setChip('chipDOCX', caps.docx, '✅ DOCX lokalnie', '❌ DOCX — uruchom npm run dev');
+  setChip('chipOCR',  caps.ocr,  '✅ OCR skanów (PL+EN)', '❌ OCR — npm run dev');
+  setChip('chipMath', caps.math, '✅ Pix2Text (wzory)', '⚠️ Pix2Text — pip install pix2text');
+
+  const mathBox = document.getElementById('mathMode');
+  if (!caps.math) {
+    mathBox.checked = false;
+    mathBox.disabled = true;
+  } else {
+    mathBox.disabled = false;
+    mathBox.checked = true;
+  }
+}
+
+function setChip(id, ok, msgOk, msgErr) {
+  const el = document.getElementById(id);
+  el.textContent = ok ? msgOk : msgErr;
+  el.className = 'chip ' + (ok ? 'ok' : 'err');
+}
+
+// ── mode switch ────────────────────────────────────────────────────────────
+function switchMode(m) {
+  curMode = m;
+  document.getElementById('mFile').style.display = m==='file' ? 'flex' : 'none';
+  document.getElementById('mText').style.display = m==='text' ? 'flex' : 'none';
+  document.getElementById('tabF').className = 'tab' + (m==='file' ? ' on' : '');
+  document.getElementById('tabT').className = 'tab' + (m==='text' ? ' on' : '');
+  updateModePill();
+}
+
+function updateModePill() {
+  const pill = document.getElementById('modePill');
+  if (curMode === 'text') {
+    pill.textContent = 'tryb: tekst'; pill.className = 'mode-pill';
+  } else if (extractedText) {
+    pill.textContent = '✅ tekst lokalny'; pill.className = 'mode-pill local';
+  } else {
+    pill.textContent = 'tryb: plik'; pill.className = 'mode-pill';
+  }
+}
+
+// ── file handling ──────────────────────────────────────────────────────────
+function dvr(e) { e.preventDefault(); document.getElementById('dz').classList.add('over'); }
+function dvl()  { document.getElementById('dz').classList.remove('over'); }
+function ddp(e) { e.preventDefault(); dvl(); const f=e.dataTransfer.files[0]; if(f) setFile(f); }
+function fsel(e){ const f=e.target.files[0]; if(f) setFile(f); }
+
+async function setFile(f) {
+  curFile = f;
+  extractedText = '';
+  extractMethod = '';
+  document.getElementById('fname').textContent = f.name + ' (' + fmtSz(f.size) + ')';
+  document.getElementById('fpill').style.display = 'flex';
+  document.getElementById('dz').style.display = 'none';
+  updateModePill();
+
+  if (!caps.pdf && !caps.docx && !caps.ocr) {
+    await checkStatus();
+  }
+
+  const ext = f.name.split('.').pop().toLowerCase();
+  const isImage = ['jpg','jpeg','png','webp','bmp','tif','tiff'].includes(ext);
+  const canExtract =
+    (ext === 'pdf' && caps.pdf) ||
+    (['docx','doc'].includes(ext) && caps.docx) ||
+    (isImage && caps.ocr) ||
+    ['txt','md','rtf'].includes(ext);
+
+  if (canExtract) {
+    await extractLocally(f);
+  } else {
+    document.getElementById('progWrap').style.display = 'block';
+    document.getElementById('progLabel').textContent =
+      '⚠️ Serwer niedostępny — uruchom npm run dev';
+  }
+}
+
+async function extractLocally(f) {
+  const pw = document.getElementById('progWrap');
+  const pf = document.getElementById('progFill');
+  const pl = document.getElementById('progLabel');
+  const ext = f.name.split('.').pop().toLowerCase();
+  const isImage = ['jpg','jpeg','png','webp','bmp','tif','tiff'].includes(ext);
+
+  pw.style.display = 'block';
+  pf.style.width = '30%';
+  const useMath = document.getElementById('mathMode').checked && caps.math;
+  pl.textContent = useMath
+    ? 'Pix2Text — tekst + wzory (1–3 min, pierwszy raz dłużej)...'
+    : isImage
+      ? 'OCR obrazu (może potrwać minutę)...'
+      : ext === 'pdf'
+        ? 'Ekstrakuję PDF (skan → OCR, może potrwać kilka min)...'
+        : 'Ekstrahuję tekst lokalnie...';
+
+  try {
+    const b64 = await toB64(f);
+    pf.style.width = '60%';
+    if (useMath) pl.textContent = 'Pix2Text w toku — proszę czekać...';
+    else if (isImage) pl.textContent = 'OCR w toku — proszę czekać...';
+    const resp = await fetch('/api/extract', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        filename: f.name,
+        data: b64,
+        mode: useMath ? 'math' : 'standard',
+      })
+    });
+    const d = await resp.json();
+    if (!resp.ok) throw new Error(d.error || 'Błąd ekstrakcji');
+    extractedText = d.text;
+    extractMethod = d.method || '';
+    pf.style.width = '100%';
+    if (d.method === 'pix2text') {
+      pl.textContent = `✅ Pix2Text: ${d.chars.toLocaleString('pl')} znaków (LaTeX)`;
+    } else if (d.method === 'pdf-ocr' || d.method === 'image-ocr') {
+      pl.textContent = `✅ OCR: ${d.chars.toLocaleString('pl')} znaków`;
+    } else {
+      pl.textContent = `✅ Wyciągnięto ${d.chars.toLocaleString('pl')} znaków lokalnie`;
+    }
+    updateModePill();
+  } catch(e) {
+    pf.style.width = '100%';
+    pl.textContent = '⚠️ ' + e.message;
+    extractedText = '';
+  }
+}
+
+function rmFile() {
+  curFile = null; extractedText = ''; extractMethod = '';
+  document.getElementById('fi').value = '';
+  document.getElementById('fpill').style.display = 'none';
+  document.getElementById('dz').style.display = 'block';
+  document.getElementById('progWrap').style.display = 'none';
+  updateModePill();
+}
+
+function toB64(file) {
+  return new Promise((res,rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result.split(',')[1]);
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+}
+
+function fmtSz(b) {
+  if (b<1024) return b+' B';
+  if (b<1048576) return Math.round(b/1024)+' KB';
+  return (b/1048576).toFixed(1)+' MB';
+}
+
+// ── stats ──────────────────────────────────────────────────────────────────
+function updStats() {
+  const t = document.getElementById('rawText').value;
+  document.getElementById('iChars').textContent = t.length.toLocaleString('pl');
+  document.getElementById('iWords').textContent = t.trim() ? t.trim().split(/\s+/).length.toLocaleString('pl') : '0';
+}
+
+// ── main run ───────────────────────────────────────────────────────────────
+async function run() {
+  let inputText = '';
+
+  if (curMode === 'file') {
+    if (!curFile) { setStat('Wybierz plik.', false, true); return; }
+    if (!extractedText) {
+      await extractLocally(curFile);
+      if (!extractedText) return;
+    }
+    inputText = extractedText;
+  } else {
+    inputText = document.getElementById('rawText').value.trim();
+    if (!inputText) { setStat('Wklej tekst do przetworzenia.', false, true); return; }
+  }
+
+  setLoading(true);
+  try {
+    const resp = await fetch('/api/clean', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text: inputText,
+        light: extractMethod === 'pix2text',
+        method: extractMethod,
+      })
+    });
+    const d = await resp.json();
+    if (!resp.ok) throw new Error(d.error || 'Błąd czyszczenia');
+    showResult(d.text);
+    setStat('✅ Gotowe!', false);
+  } catch (e) {
+    showErr(e.message);
+    setStat('Błąd.', false, true);
+  } finally {
+    setLoading(false);
+  }
+}
+
+// ── helpers ────────────────────────────────────────────────────────────────
+function setLoading(on) {
+  document.getElementById('parseBtn').disabled = on;
+  if (on) {
+    document.getElementById('outArea').className = 'out-body';
+    document.getElementById('outArea').textContent = '';
+    document.getElementById('cpBtn').style.display = 'none';
+    document.getElementById('bcBadge').style.display = 'none';
+    setStat('Przetwarzanie…', true);
+  }
+}
+
+function showResult(text) {
+  const el = document.getElementById('outArea');
+  el.className = 'out-body';
+  el.textContent = text;
+  document.getElementById('oChars').textContent = text.length.toLocaleString('pl');
+  document.getElementById('oWords').textContent = text.trim().split(/\s+/).length.toLocaleString('pl');
+  document.getElementById('cpBtn').style.display = 'inline-block';
+  document.getElementById('bcBadge').style.display = 'inline-block';
+}
+
+function showErr(msg) {
+  const el = document.getElementById('outArea');
+  el.className = 'out-body err';
+  el.textContent = '❌ ' + msg;
+}
+
+async function cpOut() {
+  const t = document.getElementById('outArea').textContent;
+  try {
+    await navigator.clipboard.writeText(t);
+    const b = document.getElementById('cpBtn');
+    b.textContent = '✅ skopiowano';
+    setTimeout(() => { b.textContent = '📋 kopiuj'; }, 2000);
+  } catch {
+    const ta = document.createElement('textarea');
+    ta.value = t; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta);
+  }
+}
+
+function clrAll() {
+  rmFile();
+  document.getElementById('rawText').value = '';
+  document.getElementById('outArea').className = 'out-body ph';
+  document.getElementById('outArea').innerHTML = '<div><div style="font-size:26px;margin-bottom:8px">✨</div>Wgraj plik lub wklej tekst,<br>następnie kliknij „Parsuj i wyczyść"</div>';
+  document.getElementById('cpBtn').style.display = 'none';
+  document.getElementById('bcBadge').style.display = 'none';
+  document.getElementById('oChars').textContent = '—';
+  document.getElementById('oWords').textContent = '—';
+  document.getElementById('statMsg').textContent = '';
+  updStats();
+}
+
+function setStat(msg, loading, err=false) {
+  const el = document.getElementById('statMsg');
+  if (loading) {
+    el.innerHTML = '<div class="spin"></div>' + msg;
+    el.style.color = '';
+  } else {
+    el.textContent = msg;
+    el.style.color = err ? 'var(--red)' : '';
+    if (!err) setTimeout(() => { if (el.textContent===msg) el.textContent=''; }, 3000);
+  }
+}
+
+// ── start ──────────────────────────────────────────────────────────────────
+checkStatus();
+switchMode('file');
+</script>
+</body>
+</html>
