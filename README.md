@@ -1,95 +1,155 @@
-# Document Parser — LLM Prep Engine
+﻿# Document Parser
 
-Lokalna aplikacja do ekstrakcji i czyszczenia dokumentów PDF/DOCX/JPG.
-**100% offline** — pliki nie wychodzą z komputera, bez klucza API.
+Aplikacja webowa do ekstrakcji tekstu z PDF, DOCX i obrazów (JPG/PNG) oraz czyszczenia go do czytelnego Markdown.
+
+OCR: Tesseract (polski + angielski). Bez Pythona, bez kluczy API.
+
+## Live demo / Działająca aplikacja
+
+Otwórz link w przeglądarce — nie trzeba nic instalować ani uruchamiać lokalnie.
+
+**https://document-parser-7ho7.onrender.com/**
+
+Uwaga: na darmowym hostingu po ok. 15 minutach bez ruchu serwis zasypia. Pierwsze otwarcie może potrwać 30–60 sekund.
 
 ---
 
-## Szybki start
+## Polish / Polski
 
-### 1. Wymagania
-- **Node.js** 20+ — https://nodejs.org/
-- **Python** 3.10+ — https://www.python.org/ (zaznacz „Add to PATH”)
+### Co robi
 
-### 2. Instalacja (tylko raz)
+1. Wgrywasz plik albo wklejasz tekst.
+2. Aplikacja wyciąga treść (PDF tekstowy, skan z OCR, DOCX, obraz).
+3. Czyści artefakty (numery stron, stopki, zbędne przerwy).
+4. Dostajesz czysty Markdown do skopiowania.
 
-```powershell
+### Jak korzystać
+
+- **Przez internet:** otwórz [działającą aplikację](https://document-parser-7ho7.onrender.com/).
+- **Lokalnie (dla deweloperów):** patrz sekcja poniżej.
+
+### Wymagania (tylko lokalnie)
+
+- [Node.js](https://nodejs.org/) w wersji 20 lub nowszej
+
+### Uruchomienie lokalne
+
+```bash
+git clone https://github.com/Wiktor284/file_to_md
+cd file_to_md
 npm install
-npm run setup:python
-```
-
-`setup:python` instaluje **Pix2Text** (~2 GB modeli przy pierwszym uruchomieniu).
-
-### 3. Uruchomienie
-
-```powershell
 npm run dev
 ```
 
-### 4. Otwórz aplikację
+Otwórz w przeglądarce: [http://localhost:8765](http://localhost:8765)
 
-**http://localhost:XXXX**
+Zatrzymanie: `Ctrl+C`
 
----
+### Obsługiwane formaty
 
-## Tryby OCR
+| Format | Jak działa |
+|--------|------------|
+| PDF (z tekstem) | bezpośrednia ekstrakcja |
+| PDF (skan) | OCR |
+| JPG, PNG, WEBP | OCR |
+| DOCX | ekstrakcja tekstu |
+| TXT, MD, RTF | odczyt pliku |
 
-| Tryb | Kiedy używać | Silnik |
-|------|--------------|--------|
-| **Matematyka (Pix2Text)** ✅ domyślny dla JPG/PDF | Egzaminy, wzory, skany | Python + Pix2Text |
-| **Standardowy** | Zwykły tekst, szybciej | Tesseract |
-
-Zaznacz/odznacz **„Tryb matematyka (Pix2Text)”** nad formularzem.
-
----
-
-## Jak to działa
+### Struktura projektu
 
 ```
-Twój plik (JPG / PDF / DOCX)
-       ↓
-  [Node.js serwer]
-       ↓
-  JPG/PDF + tryb math → [Python Pix2Text] → Markdown + LaTeX
-  JPG/PDF + tryb standard → [Tesseract OCR]
-  DOCX → [mammoth]
-       ↓
-  Czysty Markdown
+server.js       serwer HTTP
+public/         interfejs (UI)
+lib/            ekstrakcja, OCR, czyszczenie tekstu
+package.json    zależności Node.js
 ```
 
----
+### Rozwiązywanie problemów
 
-## Obsługiwane formaty
+**Port 8765 zajęty**
 
-| Format | Standard | Matematyka (Pix2Text) |
-|--------|----------|------------------------|
-| JPG, PNG | OCR Tesseract | ✅ **Zalecane** |
-| PDF (skan) | OCR Tesseract | ✅ **Zalecane** |
-| PDF (tekst) | pdf-parse | Pix2Text |
-| DOCX | mammoth | — |
-| TXT, MD, RTF | wbudowane | — |
-
----
-
-## Ważne
-
-- **Pierwsze uruchomienie Pix2Text** — pobiera modele (~1–2 GB), potrzebny internet **tylko raz**
-- **Czas** — Pix2Text: 1–3 min na stronę; Tesseract: ~30–90 s
-- **RAM** — Pix2Text potrzebuje ok. 2–4 GB
-
----
-
-## Rozwiązywanie problemów
-
-**Pix2Text — brak / czerwony chip**
-```powershell
-npm run setup:python
-```
-
-**Port zajęty**
-```powershell
+```bash
 netstat -ano | findstr :8765
-taskkill /PID <numer> /F
+taskkill /PID NUMER_PID /F
 ```
 
-**Zrestartuj serwer** po instalacji Pythona: `Ctrl+C`, potem `npm run dev`
+Potem ponownie: `npm run dev`
+
+**Serwer nie startuje**
+
+Sprawdź, czy masz Node.js 20+:
+
+```bash
+node -v
+```
+
+---
+
+## English
+
+### What it does
+
+1. Upload a file or paste text.
+2. The app extracts content (text PDF, scanned PDF via OCR, DOCX, images).
+3. It cleans artifacts (page numbers, footers, extra blank lines).
+4. You get clean Markdown ready to copy.
+
+### How to use
+
+- **Online:** open the [live app](https://document-parser-7ho7.onrender.com/).
+- **Locally (for developers):** see the section below.
+
+### Requirements (local only)
+
+- [Node.js](https://nodejs.org/) 20 or newer
+
+### Run locally
+
+```bash
+git clone https://github.com/Wiktor284/file_to_md
+cd file_to_md
+npm install
+npm run dev
+```
+
+Open in your browser: [http://localhost:8765](http://localhost:8765)
+
+Stop: `Ctrl+C`
+
+### Supported formats
+
+| Format | How it works |
+|--------|--------------|
+| PDF (text) | direct extraction |
+| PDF (scan) | OCR |
+| JPG, PNG, WEBP | OCR |
+| DOCX | text extraction |
+| TXT, MD, RTF | file read |
+
+### Project structure
+
+```
+server.js       HTTP server
+public/         user interface
+lib/            extraction, OCR, text cleaning
+package.json    Node.js dependencies
+```
+
+### Troubleshooting
+
+**Port 8765 already in use**
+
+```bash
+netstat -ano | findstr :8765
+taskkill /PID PID_NUMBER /F
+```
+
+Then run `npm run dev` again.
+
+**Server will not start**
+
+Check Node.js version (20+ required):
+
+```bash
+node -v
+```
